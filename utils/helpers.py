@@ -52,6 +52,39 @@ ICON_SYMMETRY_HORIZONTAL_DESCRIPTIVE = """
 </svg>
 """
 
+ICON_FILL_TOOL = """
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-paint-bucket" viewBox="0 0 16 16">
+  <path d="M2.522 0H2a.5.5 0 0 0-.494.574l1.372 7.89a.5.5 0 0 0 .494.426h5.258a.5.5 0 0 0 .494-.426l1.372-7.89A.5.5 0 0 0 10 0h-.522a.5.5 0 0 0-.475.33L8.5 2.833A.5.5 0 0 0 8 3.333V3.5a.5.5 0 0 0 .5.5h.5a.5.5 0 0 0 .5-.5V3.333a.5.5 0 0 0-.5-.5L8.022.33A.5.5 0 0 0 7.54 0h-3.018a.5.5 0 0 0-.475.33L2.5 2.833A.5.5 0 0 0 2 3.333V3.5a.5.5 0 0 0 .5.5h.5a.5.5 0 0 0 .5-.5V3.333a.5.5 0 0 0-.5-.5L2.998.33A.5.5 0 0 0 2.522 0zM4.38 8.187l-1.353 7.73a.5.5 0 0 0 .494.583h8.958a.5.5 0 0 0 .494-.583l-1.353-7.73A1.5 1.5 0 0 0 10.43 7H4.57a1.5 1.5 0 0 0-1.488 1.187z"/>
+</svg>
+"""
+
+ICON_SELECT_TOOL = """
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="none" stroke="currentColor" stroke-dasharray="2,2" stroke-width="1.5" d="M1.5 1.5h13v13h-13z"/>
+</svg>
+"""
+
+ICON_COPY = """
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16">
+  <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+  <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+</svg>
+"""
+
+ICON_CUT = """
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-scissors" viewBox="0 0 16 16">
+  <path d="M3.5 3.5c-.614-.884-.074-1.962.858-2.5L8 7.226 11.642 1c.932.538 1.472 1.616.858 2.5L8.81 8.61l1.556 2.661a2.5 2.5 0 1 1-.794.637L8 9.73l-1.572 2.177a2.5 2.5 0 1 1-.794-.637L7.19 8.61 3.5 3.5zm2.5 10a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0zm7 0a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0z"/>
+</svg>
+"""
+
+ICON_PASTE = """
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard-plus" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 7a.5.5 0 0 1 .5.5V9H10a.5.5 0 0 1 0 1H8.5v1.5a.5.5 0 0 1-1 0V10H6a.5.5 0 0 1 0-1h1.5V7.5A.5.5 0 0 1 8 7z"/>
+  <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+  <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+</svg>
+"""
+
 # --- Helper Function ---
 
 def svg_to_qicon(svg_string: str, color: str = "#f8f9fa") -> QIcon:
