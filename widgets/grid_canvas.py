@@ -1,4 +1,4 @@
-# widgets/grid_canvas.py (v8.4 - Lógica de Selección y Portapapeles)
+# widgets/grid_canvas.py (v8.5 - Lógica completa de Copiar/Cortar/Pegar/Borrar)
 
 from PyQt6.QtWidgets import QWidget, QSizePolicy, QRubberBand 
 from PyQt6.QtGui import (
@@ -7,7 +7,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QPointF, QPoint, QRectF, pyqtSignal, QRect, QSize 
 
 # --- Import Command classes ---
-from commands import Command, PaintCommand, SelectionCommand # <-- Importar SelectionCommand
+from commands import Command, PaintCommand, SelectionCommand
 
 class GridCanvas(QWidget):
     undo_redo_changed = pyqtSignal(bool, bool) 
@@ -41,6 +41,7 @@ class GridCanvas(QWidget):
         self.selection_origin: QPoint | None = None 
         self.rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self)
         
+        # --- Portapapeles interno ---
         self.clipboard_data: list[list[QColor | None]] | None = None
         
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
@@ -226,6 +227,8 @@ class GridCanvas(QWidget):
                 self.rubber_band.setGeometry(QRect(self.selection_origin, event.pos()).normalized())
         elif event.buttons() & Qt.MouseButton.MiddleButton and self.last_pan_pos is not None:
             delta = QPointF(event.pos() - self.last_pan_pos); self.pan_offset += delta; self.last_pan_pos = event.pos(); self.update() 
+    
+    # --- MODIFICADO: mouseReleaseEvent emite señal completa ---
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
              self._is_dragging_paint = False 
@@ -251,12 +254,12 @@ class GridCanvas(QWidget):
 
     # --- Data Management ---
     
-    # --- MODIFICADO: clear_selection emite señal ---
+    # --- MODIFICADO: clear_selection emite señal completa ---
     def clear_selection(self):
         """Borra la selección activa y emite una señal."""
         if self.selection_rect is not None:
             self.selection_rect = None
-            self.selection_changed.emit(False, self.clipboard_data is not None) # Emitir señal de no selección
+            self.selection_changed.emit(False, self.clipboard_data is not None) 
             self.update() 
 
     def clear_grid(self):
@@ -299,13 +302,17 @@ class GridCanvas(QWidget):
         for r in range(self.selection_rect.height()):
             row = []
             y = self.selection_rect.y() + r
+            # Asegurarse de que y esté dentro de los límites del lienzo
             if 0 <= y < self.grid_height:
                 for c in range(self.selection_rect.width()):
                     x = self.selection_rect.x() + c
+                    # Asegurarse de que x esté dentro de los límites del lienzo
                     if 0 <= x < self.grid_width:
                         row.append(self.grid_data[y][x])
-                    else: row.append(None) # Relleno (fuera de límites)
-            else: row = [None] * self.selection_rect.width() # Relleno (fuera de límites)
+                    else:
+                        row.append(None) # Relleno si la selección sale del borde
+            else:
+                row = [None] * self.selection_rect.width() # Relleno si la selección sale del borde
             data.append(row)
         return data
 
@@ -326,22 +333,27 @@ class GridCanvas(QWidget):
         self.copy_selection() # Primero copia
         
         # Luego crea un comando para borrar el área
-        cmd = SelectionCommand(self, self.selection_rect, paste_data=None) # None = borrar
+        # paste_data=None significa "borrar"
+        cmd = SelectionCommand(self, self.selection_rect, paste_data=None) 
         self._execute_command(cmd, merge=False)
-        # No borramos la selección, el usuario podría querer pegar en el mismo lugar
+        
+        # Cortar no borra la selección visual, solo el contenido
         # self.clear_selection() 
         print("Selection cut.")
 
     def paste_selection(self):
         """Pega los datos del portapapeles en la ubicación de la selección."""
         if not self.clipboard_data or not self.selection_rect:
-            # No hay nada que pegar, o no hay dónde pegarlo
             return
         
-        # Crear un rectángulo de destino del mismo tamaño que el portapapeles,
-        # pero en la esquina superior izquierda de la selección actual.
-        paste_width = len(self.clipboard_data[0])
+        # El área de destino es la esquina superior izquierda de la selección actual
+        # y tiene el tamaño de los datos del portapapeles
+        paste_width = len(self.clipboard_data[0]) if self.clipboard_data else 0
         paste_height = len(self.clipboard_data)
+        
+        if paste_width == 0 or paste_height == 0:
+            return # No hay nada que pegar
+            
         target_rect = QRect(self.selection_rect.topLeft(), QSize(paste_width, paste_height))
 
         cmd = SelectionCommand(self, target_rect, paste_data=self.clipboard_data)
@@ -355,7 +367,9 @@ class GridCanvas(QWidget):
         
         cmd = SelectionCommand(self, self.selection_rect, paste_data=None) # None = borrar
         self._execute_command(cmd, merge=False)
-        # self.clear_selection() # Opcional: ¿borrar la selección después de borrar?
+        
+        # Borrar el contenido también borra la selección
+        self.clear_selection() 
         print("Selection deleted.")
         
 # --- Fin de la clase GridCanvas ---
