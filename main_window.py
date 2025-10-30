@@ -1,4 +1,4 @@
-# main_window.py (v8.4 - Lógica de Selección Conectada)
+# main_window.py (v9.5 - Lógica de Edición de Acabado)
 
 import sys 
 import json
@@ -7,7 +7,7 @@ import json
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QFileDialog, QSpinBox, QFrame, QSizePolicy, QComboBox,
-    QScrollArea, QApplication, QDialog, 
+    QScrollArea, QApplication, QDialog, QColorDialog, 
     QButtonGroup 
 )
 from PyQt6.QtGui import (
@@ -21,15 +21,16 @@ from widgets.palette_widget import PaletteWidget
 from widgets.grid_canvas import GridCanvas 
 from widgets.crop_dialog import CropDialog
 from widgets.preview_dialog import PreviewDialog
+from widgets.miyuki_code_dialog import MiyukiCodeDialog 
 
-# --- Import Utilities ---
+# --- Importar modelos necesarios ---
+from models import BeadColorEntry 
 from utils.helpers import (
     svg_to_qicon, 
     ICON_SAVE, ICON_LOAD, ICON_EXPORT, ICON_CLEAR, ICON_PREVIEW, 
     ICON_UNDO, ICON_REDO,
     ICON_PENCIL, ICON_SYMMETRY_VERTICAL_DESCRIPTIVE, ICON_SYMMETRY_HORIZONTAL_DESCRIPTIVE,
     ICON_FILL_TOOL, ICON_SELECT_TOOL,
-    # --- NUEVO: Importar iconos de Copiar/Pegar ---
     ICON_COPY, ICON_CUT, ICON_PASTE 
 )
 from utils.constants import PRESET_SIZES, DEFAULT_PRESET_NAME
@@ -45,17 +46,17 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.version = "8.4" # Version bump
+        self.version = "9.5" # Versión actualizada para la edición de acabados
         self.setWindowTitle(f"Beadwork Designer v{self.version}") 
         self.image_load_index = 0 
         
         main_widget = QWidget(); self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
 
-        # --- Left Panel (Sin cambios) ---
+        # --- Left Panel ---
         left_panel = QWidget(); left_layout = QVBoxLayout(left_panel); left_panel.setFixedWidth(570); left_panel.setObjectName("LeftPanel"); left_layout.setContentsMargins(0, 0, 0, 0); left_layout.setSpacing(0); inspiration_frame = QFrame(); inspiration_frame.setObjectName("SectionFrame"); inspiration_layout = QVBoxLayout(inspiration_frame); inspiration_layout.setContentsMargins(10, 10, 10, 10); load_section_label = QLabel("Inspiration"); load_section_label.setObjectName("SectionHeader"); inspiration_layout.addWidget(load_section_label); self.btn_load_image = QPushButton(); self.btn_load_image.setIcon(svg_to_qicon(ICON_LOAD)); self.btn_load_image.setIconSize(QSize(24, 24)); self.btn_load_image.setToolTip("Load Inspiration Image"); self.btn_load_image.setObjectName("PrimaryButton"); inspiration_layout.addWidget(self.btn_load_image); image_grid_container = QWidget(); image_grid = QGridLayout(image_grid_container); image_grid_container.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred); self.image_pickers = [ImageColorPicker() for _ in range(4)]; image_grid.addWidget(self.image_pickers[0], 0, 0); image_grid.addWidget(self.image_pickers[1], 0, 1); image_grid.addWidget(self.image_pickers[2], 1, 0); image_grid.addWidget(self.image_pickers[3], 1, 1); image_grid.setHorizontalSpacing(10); image_grid.setVerticalSpacing(10); image_grid.setContentsMargins(0, 5, 0, 0); image_grid.setColumnStretch(0, 1); image_grid.setColumnStretch(1, 1); image_grid.setRowStretch(0, 1); image_grid.setRowStretch(1, 1); inspiration_layout.addWidget(image_grid_container); palette_section_frame = QFrame(); palette_section_frame.setObjectName("SectionFrame"); palette_section_layout = QVBoxLayout(palette_section_frame); palette_section_layout.setContentsMargins(10, 10, 10, 10); palette_label = QLabel("Color Palette"); palette_label.setObjectName("SectionHeader"); self.palette_widget = PaletteWidget(); self.current_color_label = QLabel("Selected:"); self.current_color_swatch = QLabel(); self.current_color_swatch.setFixedSize(30, 30); self.current_color_swatch.setStyleSheet("border: 1px solid #555; background-color: #2c2c2c;"); current_color_layout = QHBoxLayout(); current_color_layout.addWidget(self.current_color_label); current_color_layout.addWidget(self.current_color_swatch); current_color_layout.addStretch(); palette_section_layout.addWidget(palette_label); palette_section_layout.addWidget(self.palette_widget); palette_section_layout.addLayout(current_color_layout); left_layout.addWidget(inspiration_frame); left_layout.addWidget(palette_section_frame); left_layout.addStretch() 
 
-        # --- Right Panel ---
+        # --- Right Panel (Canvas & Controls) ---
         right_panel = QWidget(); right_panel.setObjectName("RightPanel"); right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0,0,0,0); right_layout.setSpacing(0)
 
@@ -81,16 +82,13 @@ class MainWindow(QMainWindow):
         self.grid_canvas.set_grid_type(initial_grid_type); self.grid_canvas.set_cell_size(initial_cell_size); self.grid_canvas.set_grid_size(default_w, default_h) 
         self.canvas_scroll_area.setWidget(self.grid_canvas)
 
-        # --- MODIFICADO: IO Controls (Añadidos botones de Selección) ---
+        # --- IO Controls ---
         io_controls_layout = QHBoxLayout()
-        
         self.btn_undo = QPushButton(); self.btn_undo.setIcon(svg_to_qicon(ICON_UNDO)); self.btn_undo.setToolTip("Undo last action (Ctrl+Z)"); self.btn_undo.setEnabled(False) 
         self.btn_redo = QPushButton(); self.btn_redo.setIcon(svg_to_qicon(ICON_REDO)); self.btn_redo.setToolTip("Redo last undone action (Ctrl+Y)"); self.btn_redo.setEnabled(False) 
         io_controls_layout.addWidget(self.btn_undo); io_controls_layout.addWidget(self.btn_redo) 
-        
         separator_io = QFrame(); separator_io.setFrameShape(QFrame.Shape.VLine); separator_io.setFrameShadow(QFrame.Shadow.Sunken)
         io_controls_layout.addWidget(separator_io)
-        
         self.btn_cut = QPushButton(); self.btn_cut.setIcon(svg_to_qicon(ICON_CUT)); self.btn_cut.setToolTip("Cut Selection (Ctrl+X)"); self.btn_cut.setEnabled(False)
         io_controls_layout.addWidget(self.btn_cut)
         self.btn_copy = QPushButton(); self.btn_copy.setIcon(svg_to_qicon(ICON_COPY)); self.btn_copy.setToolTip("Copy Selection (Ctrl+C)"); self.btn_copy.setEnabled(False)
@@ -99,24 +97,19 @@ class MainWindow(QMainWindow):
         io_controls_layout.addWidget(self.btn_paste)
         self.btn_delete = QPushButton(); self.btn_delete.setIcon(svg_to_qicon(ICON_CLEAR, color="#f8d7da")); self.btn_delete.setToolTip("Delete Selection (Delete)"); self.btn_delete.setEnabled(False); self.btn_delete.setObjectName("DangerButton")
         io_controls_layout.addWidget(self.btn_delete)
-
         io_controls_layout.addSpacing(20) 
-        
         self.btn_preview = QPushButton(); self.btn_preview.setIcon(svg_to_qicon(ICON_PREVIEW)); self.btn_preview.setToolTip("Preview Design")
         self.btn_save = QPushButton(); self.btn_save.setIcon(svg_to_qicon(ICON_SAVE)); self.btn_save.setToolTip("Save Design")
         self.btn_load = QPushButton(); self.btn_load.setIcon(svg_to_qicon(ICON_LOAD)); self.btn_load.setToolTip("Load Design")
         self.btn_export_png = QPushButton(); self.btn_export_png.setIcon(svg_to_qicon(ICON_EXPORT)); self.btn_export_png.setToolTip("Export as PNG")
         io_controls_layout.addWidget(self.btn_preview); io_controls_layout.addWidget(self.btn_save)
         io_controls_layout.addWidget(self.btn_load); io_controls_layout.addWidget(self.btn_export_png); 
-        
         io_controls_layout.addStretch() 
-        
         self.btn_clear_grid = QPushButton(); self.btn_clear_grid.setIcon(svg_to_qicon(ICON_CLEAR, color="#f8d7da")); self.btn_clear_grid.setObjectName("DangerButton"); self.btn_clear_grid.setToolTip("Clear Grid")
         io_controls_layout.addWidget(self.btn_clear_grid)
-        
         design_section_layout.addWidget(self.canvas_scroll_area, 1); design_section_layout.addLayout(io_controls_layout)
 
-        # --- Section 4: Define Size (Sin cambios) ---
+        # --- Section 4: Define Size ---
         size_section_frame = QFrame(); size_section_frame.setObjectName("SectionFrame"); size_section_layout = QVBoxLayout(size_section_frame); size_section_layout.setContentsMargins(10, 10, 10, 10)
         size_label = QLabel("Canvas Size & Resolution"); size_label.setObjectName("SectionHeader")
         size_controls_layout = QGridLayout(); size_controls_layout.setHorizontalSpacing(15) 
@@ -142,13 +135,19 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(design_section_frame, 1); right_layout.addWidget(size_section_frame) 
         main_layout.addWidget(left_panel); main_layout.addWidget(right_panel, 1) 
 
-        # --- Create Actions (Añadir acciones de selección) ---
+        # --- Create Actions ---
         self._create_actions()
 
         # --- Connect Signals and Slots ---
         self.btn_load_image.clicked.connect(self.load_image)
         for picker in self.image_pickers: picker.colorPicked.connect(self.palette_widget.add_color) 
-        self.palette_widget.colorSelected.connect(self.set_current_color)
+        
+        # --- CONEXIÓN CRÍTICA (v9.5) ---
+        # 1. Clic para pintar (emite BeadColorEntry)
+        self.palette_widget.colorSelected.connect(self._handle_palette_selection) 
+        # 2. Doble clic (emite int)
+        self.palette_widget.colorRequest.connect(self.open_color_dialog) 
+        
         self.btn_clear_grid.clicked.connect(self.grid_canvas.clear_grid) 
         self.btn_save.clicked.connect(self.save_design)
         self.btn_load.clicked.connect(self.load_design)
@@ -165,88 +164,69 @@ class MainWindow(QMainWindow):
         self.paint_tool_group.buttonToggled.connect(self._on_paint_tool_changed)
         self.btn_tool_sym_v.toggled.connect(self._on_symmetry_v_toggled) 
         self.btn_tool_sym_h.toggled.connect(self._on_symmetry_h_toggled)
-        
-        # --- NUEVO: Conectar botones y señal de selección ---
         self.btn_cut.clicked.connect(self.grid_canvas.cut_selection)
         self.btn_copy.clicked.connect(self.grid_canvas.copy_selection)
         self.btn_paste.clicked.connect(self.grid_canvas.paste_selection)
         self.btn_delete.clicked.connect(self.grid_canvas.delete_selection)
         self.grid_canvas.selection_changed.connect(self._update_selection_actions)
         
-    def _create_actions(self):
-        # Acciones Undo/Redo
-        self.undo_action = QAction("Undo", self); self.undo_action.setIcon(svg_to_qicon(ICON_UNDO)); self.undo_action.setShortcut(QKeySequence.StandardKey.Undo) 
-        self.undo_action.setEnabled(False); self.undo_action.triggered.connect(self.grid_canvas.undo); self.addAction(self.undo_action) 
-        self.redo_action = QAction("Redo", self); self.redo_action.setIcon(svg_to_qicon(ICON_REDO)); self.redo_action.setShortcuts([QKeySequence.StandardKey.Redo, QKeySequence("Ctrl+Shift+Z")]) 
-        self.redo_action.setEnabled(False); self.redo_action.triggered.connect(self.grid_canvas.redo); self.addAction(self.redo_action)
+    # --- METODOS DE MANEJO DE COLOR (v9.5) ---
+    
+    # MODIFICADO: Acepta 'index' (int) en lugar de 'QColor | None'
+    def open_color_dialog(self, index: int):
+        """
+        Abre el MiyukiCodeDialog.
+        Si el índice es una celda llena, abre en Modo Edición.
+        Si el índice es una celda vacía, abre en Modo Añadir.
+        """
         
-        # --- NUEVO: Acciones de Selección (para atajos de teclado) ---
-        self.cut_action = QAction("Cut", self); self.cut_action.setIcon(svg_to_qicon(ICON_CUT)); self.cut_action.setShortcut(QKeySequence.StandardKey.Cut)
-        self.cut_action.setEnabled(False); self.cut_action.triggered.connect(self.grid_canvas.cut_selection)
-        self.addAction(self.cut_action)
-        
-        self.copy_action = QAction("Copy", self); self.copy_action.setIcon(svg_to_qicon(ICON_COPY)); self.copy_action.setShortcut(QKeySequence.StandardKey.Copy)
-        self.copy_action.setEnabled(False); self.copy_action.triggered.connect(self.grid_canvas.copy_selection)
-        self.addAction(self.copy_action)
-        
-        self.paste_action = QAction("Paste", self); self.paste_action.setIcon(svg_to_qicon(ICON_PASTE)); self.paste_action.setShortcut(QKeySequence.StandardKey.Paste)
-        self.paste_action.setEnabled(False); self.paste_action.triggered.connect(self.grid_canvas.paste_selection)
-        self.addAction(self.paste_action)
-        
-        self.delete_action = QAction("Delete", self); self.delete_action.setIcon(svg_to_qicon(ICON_CLEAR, color="#f8d7da")); self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
-        self.delete_action.setEnabled(False); self.delete_action.triggered.connect(self.grid_canvas.delete_selection)
-        self.addAction(self.delete_action)
-        
-    def update_undo_redo_buttons(self, can_undo: bool, can_redo: bool):
-        self.btn_undo.setEnabled(can_undo); self.btn_redo.setEnabled(can_redo)
-        self.undo_action.setEnabled(can_undo); self.redo_action.setEnabled(can_redo)
+        # 1. Determinar si estamos editando o añadiendo
+        entry_to_edit: BeadColorEntry | None = self.palette_widget.colors[index]
+        is_editing = (entry_to_edit is not None)
 
-    # --- NUEVO: Slot para habilitar/deshabilitar acciones de selección ---
-    def _update_selection_actions(self, has_selection: bool, has_clipboard: bool):
-        """Habilita o deshabilita los botones Cut/Copy/Delete/Paste."""
-        self.btn_cut.setEnabled(has_selection)
-        self.btn_copy.setEnabled(has_selection)
-        self.btn_delete.setEnabled(has_selection)
-        # Habilitar Pegar si hay algo en el portapapeles Y hay una selección (para saber dónde pegar)
-        self.btn_paste.setEnabled(has_clipboard and has_selection) 
+        # 2. Inicializar el diálogo (pasa la entrada si estamos editando)
+        miyuki_dialog = MiyukiCodeDialog(existing_entry=entry_to_edit, parent=self)
         
-        self.cut_action.setEnabled(has_selection)
-        self.copy_action.setEnabled(has_selection)
-        self.delete_action.setEnabled(has_selection)
-        self.paste_action.setEnabled(has_clipboard and has_selection)
-
-    def _on_paint_tool_changed(self, button: QPushButton, checked: bool):
-        if not checked: return 
-        
-        # Poner icono inactivo en todos los botones del grupo
-        self.btn_tool_pencil.setIcon(svg_to_qicon(ICON_PENCIL, ICON_COLOR_INACTIVE))
-        self.btn_tool_fill.setIcon(svg_to_qicon(ICON_FILL_TOOL, ICON_COLOR_INACTIVE))
-        self.btn_tool_select.setIcon(svg_to_qicon(ICON_SELECT_TOOL, ICON_COLOR_INACTIVE))
-
-        tool_id = self.paint_tool_group.id(button)
-
-        if tool_id == 0: # Pencil
-            self.grid_canvas.set_current_tool("pencil")
-            button.setIcon(svg_to_qicon(ICON_PENCIL, ICON_COLOR_ACTIVE_TOOL)) # Azul
-        elif tool_id == 1: # Fill Tool
-            self.grid_canvas.set_current_tool("fill")
-            button.setIcon(svg_to_qicon(ICON_FILL_TOOL, ICON_COLOR_ACTIVE_TOOL)) # Azul
-        elif tool_id == 2: # Select Tool
-            self.grid_canvas.set_current_tool("select")
-            button.setIcon(svg_to_qicon(ICON_SELECT_TOOL, ICON_COLOR_ACTIVE_TOOL)) # Azul
+        if miyuki_dialog.exec() == QDialog.DialogCode.Accepted:
             
-    def _on_symmetry_v_toggled(self, checked: bool):
-        self.grid_canvas.mirror_mode_vertical = checked
-        color = ICON_COLOR_ACTIVE_SYM if checked else ICON_COLOR_INACTIVE 
-        self.btn_tool_sym_v.setIcon(svg_to_qicon(ICON_SYMMETRY_VERTICAL_DESCRIPTIVE, color))
-        self.grid_canvas.update()
-    def _on_symmetry_h_toggled(self, checked: bool):
-        self.grid_canvas.mirror_mode_horizontal = checked
-        color = ICON_COLOR_ACTIVE_SYM if checked else ICON_COLOR_INACTIVE 
-        self.btn_tool_sym_h.setIcon(svg_to_qicon(ICON_SYMMETRY_HORIZONTAL_DESCRIPTIVE, color))
-        self.grid_canvas.update()
+            new_entry = miyuki_dialog.get_bead_entry()
+            if new_entry is None:
+                return # No se seleccionó nada
 
-    # --- Slots Cargar/Guardar (Sin cambios funcionales) ---
+            # 3. Decidir si actualizar o añadir a la paleta
+            if is_editing:
+                self.palette_widget.update_color_entry(index, new_entry)
+            else:
+                self.palette_widget.add_color_entry(new_entry) 
+            
+            # 4. Seleccionar la nueva entrada para pintar
+            self._handle_palette_selection(new_entry) 
+
+    def _handle_palette_selection(self, entry: BeadColorEntry):
+        """
+        Establece la BeadColorEntry seleccionada de la paleta como el color actual 
+        del GridCanvas y actualiza la UI.
+        """
+        self.grid_canvas.set_current_entry(entry) # Pasa el objeto completo
+        
+        color = entry.color
+        if color.alpha() == 0:
+            self.current_color_swatch.setStyleSheet("border: 1px dashed #f8d7da; background-color: #4f2222;")
+        else:
+            self.current_color_swatch.setStyleSheet(f"border: 1px solid #999; background-color: {color.name()};")
+        
+        if entry.finish == "Eraser":
+            # Si tienes un botón de borrador, selecciónalo aquí
+            pass
+        elif self.paint_tool_group.checkedId() != 0: 
+            self.btn_tool_pencil.setChecked(True)
+            
+    def set_current_color(self, color: QColor): 
+        """Método de compatibilidad obsoleto. La lógica está en _handle_palette_selection."""
+        pass
+    
+    # --- MÉTODOS RESTAURADOS ---
+    
     def load_image(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Inspiration Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if not file_path: return
@@ -259,6 +239,98 @@ class MainWindow(QMainWindow):
                 current_picker = self.image_pickers[self.image_load_index]; current_picker.set_image(cropped_image) 
                 self.image_load_index = (self.image_load_index + 1) % len(self.image_pickers)
             else: print("Warning: Cropping failed or resulted in an empty image.")
+
+    def export_as_png(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export as PNG", "", "PNG Images (*.png)")
+        if not file_path: return 
+        if not file_path.lower().endswith(".png"): file_path += ".png"
+        
+        original_zoom = self.grid_canvas.zoom_factor
+        original_pan = self.grid_canvas.pan_offset
+        
+        try:
+            base_width_multiplier = self.grid_canvas.grid_width + 0.5 if self.grid_canvas.grid_type == "Peyote/Brick" else self.grid_canvas.grid_width
+            unzoomed_width = int(base_width_multiplier * self.grid_canvas.cell_size) + 1 
+            unzoomed_height = int(self.grid_canvas.grid_height * self.grid_canvas.cell_size) + 1
+            
+            pixmap = QPixmap(unzoomed_width, unzoomed_height)
+            if pixmap.isNull(): 
+                print("Error: Failed to create pixmap for export (possibly too large).")
+                return
+            
+            pixmap.fill(QColor("#e0e0e0")) 
+            
+            painter = QPainter(pixmap)
+            if not painter.isActive(): 
+                print("Error: Failed to create QPainter for export.")
+                painter.end()
+                return
+            
+            self.grid_canvas.zoom_factor = 1.0
+            self.grid_canvas.pan_offset = QPointF(0.0, 0.0)
+            
+            self.grid_canvas.render(painter, QPoint(), flags=QWidget.RenderFlag.DrawChildren) 
+            painter.end() 
+            
+            if not pixmap.save(file_path, "PNG"): 
+                print(f"Error: Failed to save PNG file to '{file_path}'")
+                
+        except Exception as e:
+            print(f"An unexpected error occurred during PNG export: {e}")
+            if 'painter' in locals() and painter.isActive(): 
+                painter.end() 
+        finally:
+            self.grid_canvas.zoom_factor = original_zoom
+            self.grid_canvas.pan_offset = original_pan
+            self.grid_canvas._update_canvas_size_hint()
+            self.grid_canvas.update()
+
+    # --- Métodos de Acciones y Controles (Sin cambios estructurales) ---
+    def _create_actions(self):
+        self.undo_action = QAction("Undo", self); self.undo_action.setIcon(svg_to_qicon(ICON_UNDO)); self.undo_action.setShortcut(QKeySequence.StandardKey.Undo) 
+        self.undo_action.setEnabled(False); self.undo_action.triggered.connect(self.grid_canvas.undo); self.addAction(self.undo_action) 
+        self.redo_action = QAction("Redo", self); self.redo_action.setIcon(svg_to_qicon(ICON_REDO)); self.redo_action.setShortcuts([QKeySequence.StandardKey.Redo, QKeySequence("Ctrl+Shift+Z")]) 
+        self.redo_action.setEnabled(False); self.redo_action.triggered.connect(self.grid_canvas.redo); self.addAction(self.redo_action)
+        self.cut_action = QAction("Cut", self); self.cut_action.setIcon(svg_to_qicon(ICON_CUT)); self.cut_action.setShortcut(QKeySequence.StandardKey.Cut); self.cut_action.setEnabled(False); self.cut_action.triggered.connect(self.grid_canvas.cut_selection); self.addAction(self.cut_action)
+        self.copy_action = QAction("Copy", self); self.copy_action.setIcon(svg_to_qicon(ICON_COPY)); self.copy_action.setShortcut(QKeySequence.StandardKey.Copy); self.copy_action.setEnabled(False); self.copy_action.triggered.connect(self.grid_canvas.copy_selection); self.addAction(self.copy_action)
+        self.paste_action = QAction("Paste", self); self.paste_action.setIcon(svg_to_qicon(ICON_PASTE)); self.paste_action.setShortcut(QKeySequence.StandardKey.Paste); self.paste_action.setEnabled(False); self.paste_action.triggered.connect(self.grid_canvas.paste_selection); self.addAction(self.paste_action)
+        self.delete_action = QAction("Delete", self); self.delete_action.setIcon(svg_to_qicon(ICON_CLEAR, color="#f8d7da")); self.delete_action.setShortcut(QKeySequence.StandardKey.Delete); self.delete_action.setEnabled(False); self.delete_action.triggered.connect(self.grid_canvas.delete_selection); self.addAction(self.delete_action)
+        
+    def update_undo_redo_buttons(self, can_undo: bool, can_redo: bool):
+        self.btn_undo.setEnabled(can_undo); self.btn_redo.setEnabled(can_redo)
+        self.undo_action.setEnabled(can_undo); self.redo_action.setEnabled(can_redo)
+    
+    def _update_selection_actions(self, has_selection: bool, has_clipboard: bool):
+        self.btn_cut.setEnabled(has_selection)
+        self.btn_copy.setEnabled(has_selection)
+        self.btn_delete.setEnabled(has_selection)
+        self.btn_paste.setEnabled(has_clipboard and has_selection) 
+        self.cut_action.setEnabled(has_selection)
+        self.copy_action.setEnabled(has_selection)
+        self.delete_action.setEnabled(has_selection)
+        self.paste_action.setEnabled(has_clipboard and has_selection)
+
+    def _on_paint_tool_changed(self, button: QPushButton, checked: bool):
+        if not checked: return 
+        self.btn_tool_pencil.setIcon(svg_to_qicon(ICON_PENCIL, ICON_COLOR_INACTIVE))
+        self.btn_tool_fill.setIcon(svg_to_qicon(ICON_FILL_TOOL, ICON_COLOR_INACTIVE))
+        self.btn_tool_select.setIcon(svg_to_qicon(ICON_SELECT_TOOL, ICON_COLOR_INACTIVE))
+        tool_id = self.paint_tool_group.id(button)
+        if tool_id == 0: self.grid_canvas.set_current_tool("pencil"); button.setIcon(svg_to_qicon(ICON_PENCIL, ICON_COLOR_ACTIVE_TOOL))
+        elif tool_id == 1: self.grid_canvas.set_current_tool("fill"); button.setIcon(svg_to_qicon(ICON_FILL_TOOL, ICON_COLOR_ACTIVE_TOOL))
+        elif tool_id == 2: self.grid_canvas.set_current_tool("select"); button.setIcon(svg_to_qicon(ICON_SELECT_TOOL, ICON_COLOR_ACTIVE_TOOL))
+            
+    def _on_symmetry_v_toggled(self, checked: bool):
+        self.grid_canvas.mirror_mode_vertical = checked
+        color = ICON_COLOR_ACTIVE_SYM if checked else ICON_COLOR_INACTIVE 
+        self.btn_tool_sym_v.setIcon(svg_to_qicon(ICON_SYMMETRY_VERTICAL_DESCRIPTIVE, color))
+        self.grid_canvas.update()
+        
+    def _on_symmetry_h_toggled(self, checked: bool):
+        self.grid_canvas.mirror_mode_horizontal = checked
+        color = ICON_COLOR_ACTIVE_SYM if checked else ICON_COLOR_INACTIVE 
+        self.btn_tool_sym_h.setIcon(svg_to_qicon(ICON_SYMMETRY_HORIZONTAL_DESCRIPTIVE, color))
+        self.grid_canvas.update()
 
     def update_grid_size_from_controls(self):
         w = self.spin_grid_width.value(); h = self.spin_grid_height.value()
@@ -286,11 +358,6 @@ class MainWindow(QMainWindow):
         self.spin_grid_width.blockSignals(False); self.spin_grid_height.blockSignals(False)
         self.update_grid_size_from_controls() 
 
-    def set_current_color(self, color: QColor):
-        self.grid_canvas.set_current_color(color)
-        if color.alpha() == 0: self.current_color_swatch.setStyleSheet("border: 1px dashed #f8d7da; background-color: #4f2222;")
-        else: self.current_color_swatch.setStyleSheet(f"border: 1px solid #999; background-color: {color.name()};")
-
     def show_preview(self):
         self.grid_canvas.update(); QApplication.processEvents() 
         pixmap = self.grid_canvas.grab() 
@@ -301,9 +368,10 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Design", "", "Design Files (*.json)")
         if not file_path: return 
         if not file_path.lower().endswith(".json"): file_path += ".json"
+        
         design_data = {
             "metadata": {"app": "BeadworkDesigner", "version": self.version},
-            "palette": self.palette_widget.get_palette_data(), 
+            "palette": self.palette_widget.get_palette_data_with_metadata(), 
             "grid_size": {"width": self.grid_canvas.grid_width, "height": self.grid_canvas.grid_height},
             "cell_size": self.grid_canvas.cell_size, "grid_type": self.grid_canvas.grid_type,
             "mirror_mode_horizontal": self.btn_tool_sym_h.isChecked(), 
@@ -320,7 +388,10 @@ class MainWindow(QMainWindow):
         if not file_path: return 
         try:
             with open(file_path, 'r', encoding='utf-8') as f: design_data = json.load(f)
-            self.palette_widget.load_palette(design_data.get("palette", []))
+            
+            loaded_palette_data = design_data.get("palette", [])
+            self.palette_widget.load_palette_entries(loaded_palette_data) 
+            
             loaded_grid_type = design_data.get("grid_type", "Square"); self.combo_grid_type.blockSignals(True)
             self.combo_grid_type.setCurrentText(loaded_grid_type); self.combo_grid_type.blockSignals(False)
             self.grid_canvas.set_grid_type(loaded_grid_type) 
@@ -364,30 +435,3 @@ class MainWindow(QMainWindow):
         except FileNotFoundError: print(f"Error: File not found '{file_path}'")
         except json.JSONDecodeError: print(f"Error: Could not decode JSON from '{file_path}'")
         except Exception as e: print(f"An unexpected error occurred while loading file '{file_path}': {e}")
-
-    def export_as_png(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export as PNG", "", "PNG Images (*.png)")
-        if not file_path: return 
-        if not file_path.lower().endswith(".png"): file_path += ".png"
-        original_zoom = self.grid_canvas.zoom_factor; original_pan = self.grid_canvas.pan_offset
-        try:
-            base_width_multiplier = self.grid_canvas.grid_width + 0.5 if self.grid_canvas.grid_type == "Peyote/Brick" else self.grid_canvas.grid_width
-            unzoomed_width = int(base_width_multiplier * self.grid_canvas.cell_size) + 1 
-            unzoomed_height = int(self.grid_canvas.grid_height * self.grid_canvas.cell_size) + 1
-            pixmap = QPixmap(unzoomed_width, unzoomed_height)
-            if pixmap.isNull(): print("Error: Failed to create pixmap for export (possibly too large)."); return
-            pixmap.fill(QColor("#e0e0e0")) 
-            painter = QPainter(pixmap)
-            if not painter.isActive(): print("Error: Failed to create QPainter for export."); painter.end(); return
-            self.grid_canvas.zoom_factor = 1.0; self.grid_canvas.pan_offset = QPointF(0.0, 0.0)
-            self.grid_canvas.render(painter, QPoint(), flags=QWidget.RenderFlag.DrawChildren) 
-            painter.end() 
-            if not pixmap.save(file_path, "PNG"): print(f"Error: Failed to save PNG file to '{file_path}'")
-        except Exception as e:
-            print(f"An unexpected error occurred during PNG export: {e}")
-            if 'painter' in locals() and painter.isActive(): painter.end() 
-        finally:
-            self.grid_canvas.zoom_factor = original_zoom; self.grid_canvas.pan_offset = original_pan
-            self.grid_canvas._update_canvas_size_hint(); self.grid_canvas.update()
-
-# --- Fin de la clase MainWindow ---
